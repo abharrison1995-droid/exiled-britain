@@ -67,3 +67,10 @@ crashlytics-build.properties
 
 # Never commit your own user-specific editor state
 /UserSettings/
+
+# OS / archive junk (from unzipping asset packs on macOS)
+.DS_Store
+**/.DS_Store
+**/__MACOSX/
+Thumbs.db
+Desktop.ini

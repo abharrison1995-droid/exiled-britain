@@ -84,6 +84,14 @@ namespace ExiledAlvaston.Flow
         public static void ClearSave()
         {
             PlayerPrefs.DeleteKey(KeyHasSave);
+            PlayerPrefs.DeleteKey(KeyChunkName);
+            PlayerPrefs.DeleteKey(KeyPosX);
+            PlayerPrefs.DeleteKey(KeyPosY);
+            PlayerPrefs.DeleteKey(KeyPosZ);
+            PlayerPrefs.DeleteKey(KeyHealth);
+            PlayerPrefs.DeleteKey(KeyMana);
+            PlayerPrefs.DeleteKey(KeyStamina);
+            PlayerPrefs.Save();
         }
     }
 }
