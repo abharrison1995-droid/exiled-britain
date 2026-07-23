@@ -12,7 +12,28 @@ namespace ExiledAlvaston.Data
         [Header("Stat Checks (Optional)")]
         public string RequiredStat; // e.g., "Personality", "STR"
         public int RequiredStatLevel;
-        
+
+        [Header("Item Check (Optional)")]
+        [Tooltip("If set, this choice is greyed out until the player carries at least RequiredItemQuantity of this item — e.g. handing over quest proof.")]
+        public ItemData RequiredItem;
+        public int RequiredItemQuantity = 1;
+        [Tooltip("If true, picking this choice removes RequiredItemQuantity of RequiredItem from the player's inventory.")]
+        public bool ConsumeRequiredItem = true;
+
+        [Header("Quest Grant (Optional)")]
+        [Tooltip("If set, picking this choice starts this quest (popup appears when the chat ends).")]
+        public string GrantQuestId;
+        public string GrantQuestTitle;
+        [TextArea] public string GrantQuestObjective;
+        [Tooltip("Where the quest sends the player (shown on the quest detail page). Optional.")]
+        public string GrantQuestLocation;
+
+        [Header("Magic Tutorial (Optional)")]
+        [Tooltip("Picking this choice teaches the first spell and opens the naming popup after the chat closes.")]
+        public bool TeachSpark;
+        [Tooltip("Picking this choice marks the given quest id complete.")]
+        public string CompleteQuestId;
+
         public bool MeetsRequirement(CoreTraits playerTraits)
         {
             if (string.IsNullOrEmpty(RequiredStat)) return true;

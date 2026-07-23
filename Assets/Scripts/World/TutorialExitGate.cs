@@ -34,6 +34,14 @@ namespace ExiledAlvaston.World
             if (!other.CompareTag("Player") && other.GetComponentInParent<Combat.CombatController>() == null)
                 return;
 
+            // Barred until the tutorial stages are done (no sequence = free exit, e.g. revisits)
+            var sequence = TutorialSequence.Instance;
+            if (sequence != null && !sequence.ReadyToExit)
+            {
+                sequence.NudgeLockedGate();
+                return;
+            }
+
             if (UIManager.Instance != null)
                 UIManager.Instance.LogCombat("You force the outer doors of the Manor Cellars...");
 

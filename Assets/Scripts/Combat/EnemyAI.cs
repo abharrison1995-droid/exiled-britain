@@ -18,6 +18,8 @@ namespace ExiledAlvaston.Combat
         public float AttackRange = 1.6f;
         public float AttackCooldown = 1.2f;
         public int Damage = 5;
+        [Tooltip("If true, this enemy zaps the target with a lightning bolt from AttackRange instead of meleeing (set AttackRange high, e.g. 7).")]
+        public bool RangedCaster = false;
         public float EyeHeight = 0.95f;
         [Tooltip("Seconds between swing start and damage — stepping out of range dodges the hit.")]
         public float AttackWindup = 0.3f;
@@ -45,7 +47,10 @@ namespace ExiledAlvaston.Combat
             _agent = GetComponent<NavMeshAgent>();
 
             if (_selfHealth != null)
+            {
                 _selfHealth.OnTakeDamage.AddListener(OnDamaged);
+                _selfHealth.OnDeath.AddListener(OnDied);
+            }
 
             _agent.speed = MoveSpeed;
             _agent.angularSpeed = 360f;
@@ -66,13 +71,22 @@ namespace ExiledAlvaston.Combat
         private void OnDestroy()
         {
             if (_selfHealth != null)
+            {
                 _selfHealth.OnTakeDamage.RemoveListener(OnDamaged);
+                _selfHealth.OnDeath.RemoveListener(OnDied);
+            }
         }
 
         private void OnDamaged(int amount)
         {
             if (Animator != null)
                 Animator.SetTrigger("Hit");
+        }
+
+        private void OnDied()
+        {
+            if (Animator != null)
+                Animator.SetTrigger("Death");
         }
 
         private void Update()
@@ -308,6 +322,9 @@ namespace ExiledAlvaston.Combat
                 if (toTarget.magnitude <= AttackRange * 1.25f)
                 {
                     string foe = _selfHealth.DisplayName;
+
+                    if (RangedCaster)
+                        LightningBolt.Spawn(transform.position, _target.position);
 
                     Health playerHp = _target.GetComponentInParent<Health>();
                     if (playerHp != null)

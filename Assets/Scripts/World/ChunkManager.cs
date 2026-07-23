@@ -144,6 +144,104 @@ namespace ExiledAlvaston.World
             }
         }
 
+        /// <summary>
+        /// Portal travel to any chunk with an explicit spawn point — used by DungeonPortal
+        /// for dungeon entrances/exits, unlike edge transitions which derive the spawn side.
+        /// </summary>
+        public void TravelTo(MapChunkData targetChunk, Vector3 spawnPosition)
+        {
+            if (_isTransitioning) return;
+            StartCoroutine(TravelRoutine(targetChunk, spawnPosition));
+        }
+
+        private IEnumerator TravelRoutine(MapChunkData targetChunk, Vector3 spawnPosition)
+        {
+            if (targetChunk == null || targetChunk.ChunkPrefab == null)
+            {
+                Debug.LogWarning($"ChunkManager: portal target '{(targetChunk != null ? targetChunk.name : "null")}' has no prefab — travel aborted.");
+                yield break;
+            }
+            if (PlayerTransform == null)
+            {
+                var player = ExiledAlvaston.Combat.CombatController.Instance;
+                if (player != null) PlayerTransform = player.transform;
+            }
+            if (PlayerTransform == null)
+            {
+                Debug.LogWarning("ChunkManager: no PlayerTransform — travel aborted.");
+                yield break;
+            }
+
+            _isTransitioning = true;
+            ExiledAlvaston.Systems.PauseManager.Push();
+            if (LoadingScreenUI)
+            {
+                LoadingScreenUI.alpha = 1f;
+                LoadingScreenUI.interactable = true;
+                LoadingScreenUI.blocksRaycasts = true;
+            }
+
+            try
+            {
+                yield return new WaitForSecondsRealtime(0.15f);
+
+                ExiledAlvaston.Systems.WantedManager.Instance?.OnChunkTransition(CurrentChunkData, targetChunk);
+
+                GameObject previousInstance = CurrentChunkInstance;
+                CurrentChunkData = targetChunk;
+                CurrentChunkInstance = Instantiate(targetChunk.ChunkPrefab, Vector3.zero, Quaternion.identity);
+                CurrentChunkInstance.name = targetChunk.ChunkPrefab.name;
+
+                // Portal travel is given an explicit arrival position by the caller (DungeonPortal) —
+                // honor it directly. Deferring to the chunk's generic PlayerSpawnPoint here would
+                // send every portal into a chunk to the same single default marker, ignoring
+                // whatever position was actually configured on this specific portal.
+                TeleportPlayer(spawnPosition);
+
+                var camFollow = FindObjectOfType<IsometricCameraFollow>();
+                if (camFollow != null)
+                    camFollow.SnapToTarget();
+
+                if (previousInstance != null)
+                    Destroy(previousInstance);
+
+                _nextEdgeTriggerAllowedAt = Time.unscaledTime + 1f;
+
+                // Save inside the new chunk must be loadable later, so the chunk has to be
+                // findable by name even if the scene's AllChunks list predates it.
+                EnsureKnownChunk(targetChunk);
+                ExiledAlvaston.Flow.SaveGameManager.Save();
+            }
+            finally
+            {
+                if (LoadingScreenUI)
+                {
+                    LoadingScreenUI.alpha = 0f;
+                    LoadingScreenUI.interactable = false;
+                    LoadingScreenUI.blocksRaycasts = false;
+                }
+                ExiledAlvaston.Systems.PauseManager.Pop();
+                _isTransitioning = false;
+            }
+        }
+
+        /// <summary>Appends a chunk to AllChunks at runtime if the scene list doesn't have it.</summary>
+        public void EnsureKnownChunk(MapChunkData chunk)
+        {
+            if (chunk == null) return;
+            if (AllChunks != null)
+            {
+                foreach (MapChunkData c in AllChunks)
+                    if (c == chunk) return;
+            }
+
+            int oldLen = AllChunks != null ? AllChunks.Length : 0;
+            var grown = new MapChunkData[oldLen + 1];
+            if (oldLen > 0) System.Array.Copy(AllChunks, grown, oldLen);
+            grown[oldLen] = chunk;
+            AllChunks = grown;
+        }
+
         public MapChunkData FindChunkByName(string chunkName)
         {
             if (AllChunks == null || string.IsNullOrEmpty(chunkName)) return null;

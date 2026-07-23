@@ -1,13 +1,11 @@
 using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
 using ExiledAlvaston.Data;
 using ExiledAlvaston.World;
 
 namespace ExiledAlvaston.Systems
 {
     /// <summary>
-    /// Manages the "Knives" notoriety system, police escalation, and evasion logic.
+    /// Manages the "Knives" notoriety system and city evasion logic.
     /// </summary>
     public class WantedManager : MonoBehaviour
     {
@@ -19,10 +17,7 @@ namespace ExiledAlvaston.Systems
         
         [Header("Cooldown Config")]
         [Tooltip("Base cooldown applied to a chunk per Knife level when evading (in seconds)")]
-        public float CooldownPerKnife = 60f; 
-        
-        [Tooltip("Radius multiplier for scaling the firearm sound blast per knife level")]
-        public float BaseSoundRadius = 20f;
+        public float CooldownPerKnife = 60f;
 
         private void Awake()
         {
@@ -31,42 +26,15 @@ namespace ExiledAlvaston.Systems
         }
 
         /// <summary>
-        /// Called when the player fires a gun. Alerts nearby police NPCs.
+        /// Raises the Knives level by one (capped at 5) and refreshes the HUD. Used when the
+        /// player does something the law frowns on — e.g. slinging magic in the city.
         /// </summary>
-        public void TriggerFirearmSound(Vector3 position)
+        public void SpikeKnives()
         {
-            // Escalate if not maxed
             if (CurrentKnives < 5)
             {
                 CurrentKnives++;
                 UpdateUIIndicator();
-            }
-
-            // Calculate dynamic radius based on animation curve or linear scaling
-            float actualRadius = BaseSoundRadius * CurrentKnives;
-
-            // Alert nearby police
-            Collider[] hitColliders = Physics.OverlapSphere(position, actualRadius, LayerMask.GetMask("Police"));
-            foreach (var col in hitColliders)
-            {
-                // col.GetComponent<PoliceAI>().SetAggressive(true);
-                Debug.Log($"Alerted Police NPC: {col.gameObject.name}");
-            }
-            
-            // Spawn additional police if needed based on Knife level
-            SpawnEscalationUnits();
-        }
-
-        private void SpawnEscalationUnits()
-        {
-            // Logic to spawn riot police, helicopters, etc. based on CurrentKnives
-            // Only happens if the current chunk is a City.
-            if (ChunkManager.Instance != null && ChunkManager.Instance.CurrentChunkData != null)
-            {
-                if (ChunkManager.Instance.CurrentChunkData.IsCity)
-                {
-                    Debug.Log($"Spawning reinforcement tier {CurrentKnives}");
-                }
             }
         }
 
@@ -103,17 +71,6 @@ namespace ExiledAlvaston.Systems
         {
             if (ExiledAlvaston.UI.UIManager.Instance != null)
                 ExiledAlvaston.UI.UIManager.Instance.UpdateKnivesUI(CurrentKnives);
-        }
-
-        private void OnDrawGizmos()
-        {
-            // Debug the current blast radius if wanted
-            if (CurrentKnives > 0)
-            {
-                Gizmos.color = new Color(1, 0, 0, 0.3f);
-                // Hardcoded origin point for debug, in reality, use the player position.
-                Gizmos.DrawWireSphere(Vector3.zero, BaseSoundRadius * CurrentKnives);
-            }
         }
     }
 }

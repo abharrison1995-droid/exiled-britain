@@ -37,6 +37,12 @@ namespace ExiledAlvaston.Flow
         [Header("Spawn")]
         public Vector3 ManorSpawnPosition = new Vector3(0f, 0f, -8f);
 
+        [Header("Tutorial")]
+        [Tooltip("Sprite for the tutorial bandit. Wire via Tools/Discover England/Wire Tutorial Bandit Sprite; falls back to a capsule if empty.")]
+        public Sprite TutorialBanditSprite;
+        [Tooltip("Prefab for the tutorial supply chest. Wire via Tools/Discover England/Wire Tutorial Chest Prefab; falls back to a plain box if empty.")]
+        public GameObject TutorialChestPrefab;
+
         /// <summary>Blocks InstanceDoor briefly after exiting so spawn doesn't re-enter.</summary>
         public float InstanceDoorReadyAt { get; private set; }
 
@@ -77,13 +83,46 @@ namespace ExiledAlvaston.Flow
         {
             State = GameFlowState.Title;
             SetUi(title: true, creator: false, hud: false);
+
+            // Close anything that pushed a pause before the hard reset below
+            var inv = FindObjectOfType<UI.InventoryController>(true);
+            if (inv != null) inv.CloseIfOpen();
+
             ExiledAlvaston.Systems.PauseManager.Reset();
+            SetPlayerSimulated(false);
         }
 
         public void ShowCreator()
         {
             State = GameFlowState.CharacterCreator;
             SetUi(title: false, creator: true, hud: false);
+            SetPlayerSimulated(false);
+        }
+
+        /// <summary>
+        /// Freeze the player's physics while on Title/Creator — there's no chunk under
+        /// them yet, so an active Rigidbody would just fall forever.
+        /// </summary>
+        private void SetPlayerSimulated(bool simulated)
+        {
+            var player = CombatController.Instance ?? FindObjectOfType<CombatController>();
+            if (player == null) return;
+
+            var rb = player.GetComponent<Rigidbody>();
+            if (rb == null) return;
+
+            if (simulated)
+            {
+                rb.isKinematic = false;
+            }
+            else
+            {
+                // Already kinematic (e.g. Title -> Creator, both calling this) — Unity
+                // disallows setting velocity on a kinematic body and logs a warning for it.
+                if (!rb.isKinematic)
+                    rb.velocity = Vector3.zero;
+                rb.isKinematic = true;
+            }
         }
 
         public void StartNewGame(string characterName, PlayerClass playerClass)
@@ -96,6 +135,22 @@ namespace ExiledAlvaston.Flow
             CharacterData templateData = existing != null ? existing.PlayerData : null;
             PlayerSession.Instance.BeginNewGame(characterName, playerClass, templateData);
 
+            BindPlayerToSession(existing);
+
+            EnterManorCellars(isTutorial: true);
+        }
+
+        /// <summary>The interact system needs a PlayerInteractor on the player — add it if the scene lacks one.</summary>
+        private static void EnsurePlayerInteractor()
+        {
+            var player = CombatController.Instance ?? FindObjectOfType<CombatController>();
+            if (player != null && player.GetComponent<PlayerInteractor>() == null)
+                player.gameObject.AddComponent<PlayerInteractor>();
+        }
+
+        /// <summary>Push the session's runtime stats onto the player object and inventory UI.</summary>
+        private void BindPlayerToSession(CombatController existing)
+        {
             if (existing != null && PlayerSession.Instance.RuntimeStats != null)
             {
                 existing.PlayerData = PlayerSession.Instance.RuntimeStats;
@@ -108,13 +163,70 @@ namespace ExiledAlvaston.Flow
                     hp.CurrentHealth = hp.MaxHealth;
                     hp.DisplayName = PlayerSession.Instance.CharacterName;
                 }
+
+                // Clears _isDead — the player may be arriving here via the death screen
+                existing.ReviveFull();
             }
 
             var inventory = FindObjectOfType<UI.InventoryController>(true);
             if (inventory != null)
                 inventory.BindCharacter(PlayerSession.Instance.RuntimeStats);
+        }
 
-            EnterManorCellars(isTutorial: true);
+        /// <summary>
+        /// Full restore from the save file: session, quests, then world/player. Used by the
+        /// title screen's Continue button and the death screen's Load Last Game.
+        /// </summary>
+        public bool ContinueFromSave()
+        {
+            SaveData data = SaveGameManager.ReadSaveData();
+            if (data == null) return false;
+
+            EnsureSession();
+            EnsureQuestManager();
+
+            var existing = CombatController.Instance ?? FindObjectOfType<CombatController>();
+            CharacterData templateData = existing != null ? existing.PlayerData : null;
+            PlayerSession.Instance.RestoreFromSave(
+                data.CharacterName, (PlayerClass)data.PlayerClass, data.TutorialComplete, templateData);
+            QuestManager.Instance.RestoreQuests(data.Quests);
+            PlayerSession.Instance.RestoreInventory(data.Inventory);
+            BindPlayerToSession(existing);
+
+            // Mid-tutorial saves restart the tutorial cleanly rather than resuming half-staged
+            if (!data.TutorialComplete)
+            {
+                EnterManorCellars(isTutorial: true);
+                return true;
+            }
+
+            State = GameFlowState.Playing;
+            SetUi(title: false, creator: false, hud: true);
+            SetPlayerSimulated(true);
+            EnsurePlayerInteractor();
+            InstanceDoorReadyAt = Time.unscaledTime + 1.25f;
+
+            if (!SaveGameManager.LoadWorld(data))
+            {
+                Debug.LogWarning("ContinueFromSave: saved chunk unresolvable — falling back to London gates.");
+                LoadLondonAtWestGates();
+                return true;
+            }
+
+            if (UIManager.Instance != null)
+            {
+                string label = ChunkManager != null && ChunkManager.CurrentChunkData == LondonChunk
+                    ? EKVibe.CapitalCity
+                    : (ChunkManager != null && ChunkManager.CurrentChunkData != null
+                        ? ChunkManager.CurrentChunkData.ChunkName
+                        : "England");
+                UIManager.Instance.SetLocationTime(label, 1, "11 PM");
+                UIManager.Instance.LogCombat("You pick up where you left off.");
+            }
+
+            var tracker = FindObjectOfType<QuestTrackerUI>();
+            if (tracker != null) tracker.Refresh();
+            return true;
         }
 
         public void EnterManorCellars()
@@ -132,6 +244,7 @@ namespace ExiledAlvaston.Flow
         {
             State = GameFlowState.Playing;
             SetUi(title: false, creator: false, hud: true);
+            SetPlayerSimulated(true);
             InstanceDoorReadyAt = Time.unscaledTime + 1.25f;
 
             if (ChunkManager == null)
@@ -151,9 +264,13 @@ namespace ExiledAlvaston.Flow
                 if (player != null)
                 {
                     ChunkManager.PlayerTransform = player.transform;
-                    ChunkManager.TeleportPlayer(ManorSpawnPosition);
+                    // Arrive at the Manor Cellars' PlayerSpawnPoint if it has one, else ManorSpawnPosition.
+                    ChunkManager.TeleportPlayer(
+                        PlayerSpawnPoint.ResolveWorldPosition(ChunkManager.CurrentChunkInstance, ManorSpawnPosition));
                 }
             }
+
+            EnsurePlayerInteractor();
 
             EnsureQuestManager();
             if (isTutorial)
@@ -161,7 +278,15 @@ namespace ExiledAlvaston.Flow
                 QuestManager.Instance.StartQuest(
                     EscapeManorQuestId,
                     "Escape the Cellars",
-                    "Find the manor gate and get out.");
+                    "Find the manor gate and get out.",
+                    giver: "",
+                    location: "Manor Cellars");
+
+                // Staged tutorial lives on the chunk instance so it resets cleanly on respawn
+                var seqGo = new GameObject("TutorialSequence");
+                if (ChunkManager != null && ChunkManager.CurrentChunkInstance != null)
+                    seqGo.transform.SetParent(ChunkManager.CurrentChunkInstance.transform, false);
+                seqGo.AddComponent<TutorialSequence>().Begin(TutorialBanditSprite, TutorialChestPrefab);
             }
 
             if (UIManager.Instance != null)
@@ -174,6 +299,9 @@ namespace ExiledAlvaston.Flow
 
             var tracker = FindObjectOfType<QuestTrackerUI>();
             if (tracker != null) tracker.Refresh();
+
+            // Checkpoint so Continue exists from the very start of a run
+            SaveGameManager.Save();
         }
 
         /// <summary>
@@ -248,9 +376,16 @@ namespace ExiledAlvaston.Flow
             ChunkManager.CurrentChunkInstance = Instantiate(LondonChunk.ChunkPrefab, Vector3.zero, Quaternion.identity);
             ChunkManager.CurrentChunkInstance.name = LondonChunk.ChunkPrefab.name;
 
+            // Bake a NavMesh at runtime so enemies path around London's buildings/props.
+            if (ChunkManager.CurrentChunkInstance.GetComponent<RuntimeNavMeshBaker>() == null)
+                ChunkManager.CurrentChunkInstance.AddComponent<RuntimeNavMeshBaker>();
+
             float half = EKVibe.ChunkSize * 0.5f;
-            // Spawn east of the manor door so cooldown + position avoid instant re-entry
-            ChunkManager.TeleportPlayer(new Vector3(-half + 14f, 0f, 0f));
+            // Arrive at the London chunk's PlayerSpawnPoint (placeable in the prefab); falls back
+            // east of the manor door if the chunk has no spawn point.
+            Vector3 fallback = new Vector3(-half + 14f, 0f, 0f);
+            ChunkManager.TeleportPlayer(
+                PlayerSpawnPoint.ResolveWorldPosition(ChunkManager.CurrentChunkInstance, fallback));
 
             EnsureManorEntranceOnCurrentLondon();
 
@@ -262,7 +397,20 @@ namespace ExiledAlvaston.Flow
 
             var tracker = FindObjectOfType<QuestTrackerUI>();
             if (tracker != null) tracker.Refresh();
+
+            // Kick off the first magic quest (Daniel Pauls) in London. Parented to the chunk so it
+            // dies with it; resumes from quest state on re-entry.
+            if (MagicTutorial.Instance == null && ChunkManager.CurrentChunkInstance != null)
+            {
+                var magicGo = new GameObject("MagicTutorial");
+                magicGo.transform.SetParent(ChunkManager.CurrentChunkInstance.transform, false);
+                magicGo.AddComponent<MagicTutorial>().Begin(TutorialBanditSprite);
+            }
+
+            // Checkpoint: tutorial completion must survive an app restart
+            SaveGameManager.Save();
         }
+
 
         /// <summary>Places / refreshes the west-path door back into Manor Cellars.</summary>
         public void EnsureManorEntranceOnCurrentLondon()

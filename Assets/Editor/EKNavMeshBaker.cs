@@ -8,7 +8,7 @@ using ExiledAlvaston.World;
 /// </summary>
 public static class EKNavMeshBaker
 {
-    [MenuItem("Tools/World/Bake Navigation Mesh")]
+    [MenuItem("Tools/Exiled Alvaston/World/Bake Navigation Mesh")]
     public static void Bake()
     {
         MarkChunkNavigationStatic();
@@ -68,10 +68,23 @@ public static class EKNavMeshBaker
             bool wall = n.Contains("Wall") || n.Contains("Building") || n.Contains("Fence") || n.Contains("Prop");
             bool skip = n.Contains("Edge") || n == "Visual" || n == "ActorVisual" || n == "Nameplate";
             if (skip) continue;
-            if (floor || wall || t.GetComponent<EnvironmentBlocker>() != null)
+
+            // Name-based checks above are a fragile allowlist — any imported prop pack (houses,
+            // urban pack, etc.) whose names don't match one of those words silently gets skipped
+            // and the NavMesh bakes straight through it. A real (non-trigger) collider is a much
+            // more reliable signal that something should block/carve the nav mesh.
+            bool hasSolidCollider = HasSolidCollider(t);
+
+            if (floor || wall || hasSolidCollider || t.GetComponent<EnvironmentBlocker>() != null)
                 count += MarkObject(t.gameObject, true);
         }
         return count;
+    }
+
+    private static bool HasSolidCollider(Transform t)
+    {
+        var col = t.GetComponent<Collider>();
+        return col != null && !col.isTrigger;
     }
 
     private static int MarkObject(GameObject go, bool navigationStatic)
