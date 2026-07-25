@@ -70,12 +70,30 @@ namespace ExiledAlvaston.UI
 
         private void OnLoadLastGame()
         {
-            if (SaveGameManager.Load())
+            // Full restore (session + quests + world) via GameFlow; raw world load as fallback
+            bool loaded = GameFlowController.Instance != null
+                ? GameFlowController.Instance.ContinueFromSave()
+                : SaveGameManager.Load();
+
+            if (loaded)
                 Hide();
+            else if (LoadLastGameButton != null)
+                LoadLastGameButton.interactable = false;
         }
 
         private void OnNewGame()
         {
+            SaveGameManager.ClearSave();
+            Hide();
+
+            if (GameFlowController.Instance != null)
+            {
+                // Title → Creator flow owns the reset (session, quests, spawn)
+                GameFlowController.Instance.ShowTitle();
+                return;
+            }
+
+            // Legacy fallback when no GameFlowController exists in the scene
             CombatController player = CombatController.Instance;
             ChunkManager chunkMgr = ChunkManager.Instance;
 
@@ -96,8 +114,6 @@ namespace ExiledAlvaston.UI
             }
 
             if (player != null) player.ReviveFull();
-            SaveGameManager.ClearSave();
-            Hide();
         }
 
         private void OnQuit()

@@ -10,7 +10,7 @@ using ExiledAlvaston.Vibe;
 /// </summary>
 public static class BanditPracticeSpawner
 {
-    [MenuItem("Tools/Combat/Spawn Practice Bandit")]
+    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Practice Bandit")]
     public static void SpawnBandit()
     {
         Sprite banditSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Art/Placeholders/spr_bandit.png");
@@ -83,7 +83,7 @@ public static class BanditPracticeSpawner
         Debug.Log($"Practice Bandit spawned at {spawnPos}. Enter Play Mode to fight.");
     }
 
-    [MenuItem("Tools/Combat/Clear All Bandits")]
+    [MenuItem("Tools/Exiled Alvaston/Debug/Clear All Bandits")]
     public static void ClearBandits()
     {
         int removed = 0;

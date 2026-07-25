@@ -18,7 +18,7 @@ public static class DiscoverEnglandSetup
     const string DataFolder = "Assets/Data/Chunks";
     const string PrefabFolder = "Assets/Prefabs/Chunks";
 
-    [MenuItem("Tools/Discover England/Setup Title, Creator & Manor Cellars")]
+    [MenuItem("Tools/Exiled Alvaston/Setup (one-time)/Discover England Bootstrap (rebuilds scene + prefabs!)")]
     public static void SetupAll()
     {
         EnsureFolders();
@@ -176,6 +176,18 @@ public static class DiscoverEnglandSetup
         var pr = path.GetComponent<Renderer>();
         Material pathMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Placeholders/mat_path.mat");
         if (pathMat != null) pr.sharedMaterial = pathMat;
+
+        // Player arrival marker — teleporting into the Manor Cellars lands here (movable in the prefab).
+        GameObject spawn = new GameObject("PlayerSpawn");
+        spawn.transform.SetParent(root.transform, false);
+        spawn.transform.localPosition = new Vector3(0f, 0f, -8f);
+        spawn.AddComponent<PlayerSpawnPoint>();
+
+        // Chest arrival marker — the tutorial chest spawns on this (drag to move/raise the chest).
+        GameObject chestMark = new GameObject("ChestSpawn");
+        chestMark.transform.SetParent(root.transform, false);
+        chestMark.transform.localPosition = new Vector3(12f, 0.4f, -12f);
+        chestMark.AddComponent<SceneMarker>().Key = "ChestSpawn";
 
         return root;
     }

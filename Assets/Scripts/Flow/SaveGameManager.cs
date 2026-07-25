@@ -1,26 +1,49 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using ExiledAlvaston.Combat;
 using ExiledAlvaston.World;
+using ExiledAlvaston.Quests;
 
 namespace ExiledAlvaston.Flow
 {
+    /// <summary>One saved inventory stack — an item id (resolved via ItemDatabase) plus a quantity.</summary>
+    [Serializable]
+    public class InventorySaveEntry
+    {
+        public string ItemID;
+        public int Quantity;
+    }
+
+    /// <summary>Everything a checkpoint needs to survive an app restart.</summary>
+    [Serializable]
+    public class SaveData
+    {
+        public string CharacterName;
+        public int PlayerClass;
+        public bool TutorialComplete;
+
+        public string ChunkName;
+        public float PosX, PosY, PosZ;
+        public int Health;
+        public int Mana;
+        public int Stamina;
+
+        public List<QuestProgress> Quests = new List<QuestProgress>();
+        public List<InventorySaveEntry> Inventory = new List<InventorySaveEntry>();
+    }
+
     /// <summary>
-    /// Lightweight checkpoint save/load via PlayerPrefs — chunk, position, health/mana/stamina only.
-    /// Not a full save-file system; auto-saves on every chunk transition so "Load Last Game" means
-    /// "back to where I entered my current area."
+    /// Checkpoint save/load as JSON in persistentDataPath — auto-saves on every chunk
+    /// transition. Session/quest restore is orchestrated by GameFlowController.ContinueFromSave;
+    /// this class owns the file plus the world/player part of loading.
     /// </summary>
     public static class SaveGameManager
     {
-        private const string KeyHasSave = "EA_HasSave";
-        private const string KeyChunkName = "EA_ChunkName";
-        private const string KeyPosX = "EA_PosX";
-        private const string KeyPosY = "EA_PosY";
-        private const string KeyPosZ = "EA_PosZ";
-        private const string KeyHealth = "EA_Health";
-        private const string KeyMana = "EA_Mana";
-        private const string KeyStamina = "EA_Stamina";
+        private static string SavePath => Path.Combine(Application.persistentDataPath, "savegame.json");
 
-        public static bool HasSave => PlayerPrefs.GetInt(KeyHasSave, 0) == 1;
+        public static bool HasSave => File.Exists(SavePath);
 
         public static void Save()
         {
@@ -28,70 +51,117 @@ namespace ExiledAlvaston.Flow
             CombatController player = CombatController.Instance;
             if (chunkMgr == null || player == null || chunkMgr.CurrentChunkData == null) return;
 
+            var data = new SaveData();
+
+            PlayerSession session = PlayerSession.Instance;
+            data.CharacterName = session != null ? session.CharacterName : "Exile";
+            data.PlayerClass = session != null ? (int)session.Class : 0;
+            data.TutorialComplete = session != null && session.TutorialComplete;
+
             Vector3 pos = player.transform.position;
-            PlayerPrefs.SetString(KeyChunkName, chunkMgr.CurrentChunkData.ChunkName);
-            PlayerPrefs.SetFloat(KeyPosX, pos.x);
-            PlayerPrefs.SetFloat(KeyPosY, pos.y);
-            PlayerPrefs.SetFloat(KeyPosZ, pos.z);
-            PlayerPrefs.SetInt(KeyHealth, player.CurrentHealth);
-            PlayerPrefs.SetInt(KeyMana, player.CurrentMana);
-            PlayerPrefs.SetInt(KeyStamina, player.CurrentStamina);
-            PlayerPrefs.SetInt(KeyHasSave, 1);
-            PlayerPrefs.Save();
+            data.ChunkName = chunkMgr.CurrentChunkData.ChunkName;
+            data.PosX = pos.x;
+            data.PosY = pos.y;
+            data.PosZ = pos.z;
+            data.Health = player.CurrentHealth;
+            data.Mana = player.CurrentMana;
+            data.Stamina = player.CurrentStamina;
+
+            if (QuestManager.Instance != null)
+                data.Quests.AddRange(QuestManager.Instance.Quests);
+
+            if (session != null)
+            {
+                foreach (InventoryStack stack in session.Inventory)
+                {
+                    if (stack?.Item == null || stack.Quantity <= 0) continue;
+                    data.Inventory.Add(new InventorySaveEntry { ItemID = stack.Item.ItemID, Quantity = stack.Quantity });
+                }
+            }
+
+            try
+            {
+                File.WriteAllText(SavePath, JsonUtility.ToJson(data));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"SaveGameManager: failed to write save — {e.Message}");
+            }
         }
 
-        /// <summary>Loads the checkpoint into the current scene. Needs ChunkManager.AllChunks populated to resolve the chunk by name.</summary>
+        /// <summary>Parses the save file; null if missing or corrupt.</summary>
+        public static SaveData ReadSaveData()
+        {
+            if (!HasSave) return null;
+            try
+            {
+                var data = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
+                return data != null && !string.IsNullOrEmpty(data.ChunkName) ? data : null;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"SaveGameManager: unreadable save — {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Restores the world/player part of a checkpoint into the current scene: chunk, position,
+        /// health/mana/stamina. Session and quests are restored by GameFlowController.ContinueFromSave.
+        /// </summary>
         public static bool Load()
         {
-            if (!HasSave) return false;
+            SaveData data = ReadSaveData();
+            if (data == null) return false;
+            return LoadWorld(data);
+        }
+
+        public static bool LoadWorld(SaveData data)
+        {
+            if (data == null) return false;
 
             ChunkManager chunkMgr = ChunkManager.Instance;
             CombatController player = CombatController.Instance;
             if (chunkMgr == null || player == null) return false;
 
-            string chunkName = PlayerPrefs.GetString(KeyChunkName, "");
-            Data.MapChunkData chunk = chunkMgr.FindChunkByName(chunkName);
+            Data.MapChunkData chunk = chunkMgr.FindChunkByName(data.ChunkName);
             if (chunk == null || chunk.ChunkPrefab == null) return false;
 
             if (chunkMgr.CurrentChunkInstance != null)
-                Object.Destroy(chunkMgr.CurrentChunkInstance);
+                UnityEngine.Object.Destroy(chunkMgr.CurrentChunkInstance);
 
             chunkMgr.CurrentChunkData = chunk;
-            GameObject instance = Object.Instantiate(chunk.ChunkPrefab, Vector3.zero, Quaternion.identity);
+            GameObject instance = UnityEngine.Object.Instantiate(chunk.ChunkPrefab, Vector3.zero, Quaternion.identity);
             instance.name = chunk.ChunkPrefab.name;
             chunkMgr.CurrentChunkInstance = instance;
 
-            Vector3 pos = new Vector3(
-                PlayerPrefs.GetFloat(KeyPosX, 0f),
-                PlayerPrefs.GetFloat(KeyPosY, 1f),
-                PlayerPrefs.GetFloat(KeyPosZ, 0f));
-            chunkMgr.TeleportPlayer(pos);
+            chunkMgr.TeleportPlayer(new Vector3(data.PosX, data.PosY, data.PosZ));
 
             player.ReviveFull();
             Health health = player.GetComponent<Health>();
-            int savedHealth = Mathf.Max(1, PlayerPrefs.GetInt(KeyHealth, player.CurrentHealth));
+            int savedHealth = Mathf.Max(1, data.Health);
             if (health != null)
             {
                 health.Revive(savedHealth);
                 player.CurrentHealth = health.CurrentHealth;
             }
-            player.CurrentMana = PlayerPrefs.GetInt(KeyMana, player.CurrentMana);
-            player.CurrentStamina = PlayerPrefs.GetInt(KeyStamina, player.CurrentStamina);
+            player.CurrentMana = data.Mana;
+            player.CurrentStamina = data.Stamina;
 
             return true;
         }
 
         public static void ClearSave()
         {
-            PlayerPrefs.DeleteKey(KeyHasSave);
-            PlayerPrefs.DeleteKey(KeyChunkName);
-            PlayerPrefs.DeleteKey(KeyPosX);
-            PlayerPrefs.DeleteKey(KeyPosY);
-            PlayerPrefs.DeleteKey(KeyPosZ);
-            PlayerPrefs.DeleteKey(KeyHealth);
-            PlayerPrefs.DeleteKey(KeyMana);
-            PlayerPrefs.DeleteKey(KeyStamina);
-            PlayerPrefs.Save();
+            try
+            {
+                if (File.Exists(SavePath))
+                    File.Delete(SavePath);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"SaveGameManager: failed to delete save — {e.Message}");
+            }
         }
     }
 }

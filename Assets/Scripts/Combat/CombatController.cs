@@ -115,8 +115,17 @@ namespace ExiledAlvaston.Combat
             _isAttacking = false;
         }
 
+        /// <summary>False on Title/Creator — the player must not move, attack, or regen there.</summary>
+        private static bool IsFlowPlaying()
+        {
+            var flow = ExiledAlvaston.Flow.GameFlowController.Instance;
+            return flow == null || flow.State == ExiledAlvaston.Flow.GameFlowState.Playing;
+        }
+
         private void Update()
         {
+            if (!IsFlowPlaying()) return;
+
             ProcessCooldowns();
             if (!_isDead)
             {
@@ -128,6 +137,8 @@ namespace ExiledAlvaston.Combat
 
         private void FixedUpdate()
         {
+            if (!IsFlowPlaying()) return;
+
             if (!_isAttacking && !_isDead)
                 HandleMovement();
         }
@@ -176,6 +187,15 @@ namespace ExiledAlvaston.Combat
             if (Input.GetKeyDown(KeyCode.Alpha1)) TryCastAbility(0);
             if (Input.GetKeyDown(KeyCode.Alpha2)) TryCastAbility(1);
             if (Input.GetKeyDown(KeyCode.Alpha3)) TryCastAbility(2);
+            if (Input.GetKeyDown(KeyCode.Alpha4)) TryCastAbility(3);
+#if UNITY_EDITOR
+            // Dev shortcut: learn Spark and name it (the quest does this properly later). Cast with 1.
+            if (Input.GetKeyDown(KeyCode.M))
+            {
+                if (!KnowsSpark) LearnSpark();
+                UI.SpellNamingUI.Show();
+            }
+#endif
         }
 
         private static bool IsPointerOverUI()
@@ -468,7 +488,23 @@ namespace ExiledAlvaston.Combat
             if (!_activeCooldownKeys.Contains(ability.AbilityID))
                 _activeCooldownKeys.Add(ability.AbilityID);
 
+            // Magic is frowned upon in the city — it still fires, but the law takes note.
+            if (IsMagic(ability) && IsInCity())
+            {
+                Systems.WantedManager.Instance?.SpikeKnives();
+                if (UIManager.Instance != null)
+                    UIManager.Instance.ShowToast("Easy with the spells there Potter, not around the plebs yeah?");
+            }
+
             StartCoroutine(CastAbilityRoutine(ability));
+        }
+
+        private static bool IsMagic(AbilityData a) => a != null && a.ResourceType == AbilityResourceType.Mana;
+
+        private static bool IsInCity()
+        {
+            var cm = World.ChunkManager.Instance;
+            return cm != null && cm.CurrentChunkData != null && cm.CurrentChunkData.IsCity;
         }
 
         private IEnumerator CastAbilityRoutine(AbilityData ability)
@@ -478,16 +514,119 @@ namespace ExiledAlvaston.Combat
 
             if (PlayerAnimator != null) PlayerAnimator.SetTrigger("CastSpell");
 
+            // Shout the (player-named) spell overhead as you cast: "Spark Out!"
+            string shout = IsMagic(ability) && Flow.PlayerSession.Instance != null
+                ? Flow.PlayerSession.Instance.SpellName
+                : ability.AbilityName;
+            UI.SpellShoutText.Spawn(transform.position, shout);
+
             yield return new WaitForSeconds(ability.CastTime);
 
-            Vector3 spawnPos = transform.position + FacingDirection * 1.2f;
-            if (ability.EffectPrefab != null)
-                Instantiate(ability.EffectPrefab, spawnPos, transform.rotation);
+            // Zap the nearest enemy in range; otherwise the bolt just cracks off into the air.
+            Vector3 origin = transform.position;
+            Health target = FindSpellTarget(ability.Range);
+            if (target != null)
+            {
+                LightningBolt.Spawn(origin, target.transform.position);
+                if (ability.BaseDamage > 0)
+                    target.TakeDamage(ability.BaseDamage, shout, target.DisplayName);
+            }
+            else
+            {
+                LightningBolt.Spawn(origin, origin + FacingDirection * Mathf.Max(2f, ability.Range * 0.6f));
+            }
 
-            if (UIManager.Instance != null)
-                UIManager.Instance.LogCombat($"You cast {ability.AbilityName}.");
+            if (ability.EffectPrefab != null)
+                Instantiate(ability.EffectPrefab, origin + FacingDirection * 1.2f, transform.rotation);
 
             _isAttacking = false;
+        }
+
+        /// <summary>Closest living enemy Health within range (never the player themselves).</summary>
+        private Health FindSpellTarget(float range)
+        {
+            var hits = Physics.OverlapSphere(transform.position, Mathf.Max(1f, range));
+            Health best = null;
+            float bestSq = float.MaxValue;
+            foreach (var c in hits)
+            {
+                var h = c.GetComponentInParent<Health>();
+                if (h == null || h == _health || h.IsDead) continue;
+                float sq = (h.transform.position - transform.position).sqrMagnitude;
+                if (sq < bestSq) { bestSq = sq; best = h; }
+            }
+            return best;
+        }
+
+        // ---- Magic: learning the first spell ----
+
+        public const int SpellSlots = 4;
+        public bool KnowsSpark => _sparkAbility != null;
+        private AbilityData _sparkAbility;
+
+        /// <summary>Every spell the player has learned (a superset of the 4 equipped slots).</summary>
+        public List<AbilityData> KnownSpells { get; } = new List<AbilityData>();
+
+        /// <summary>Grants the Spark spell. Called by the magic tutorial when Daniel teaches it.</summary>
+        public void LearnSpark()
+        {
+            if (_sparkAbility != null) return;
+
+            _sparkAbility = ScriptableObject.CreateInstance<AbilityData>();
+            _sparkAbility.AbilityID = "spark";
+            _sparkAbility.AbilityName = "Spark";
+            _sparkAbility.IconGlyph = "⚡"; // ⚡ placeholder
+            _sparkAbility.CooldownTime = 1.25f;
+            _sparkAbility.CastTime = 0.28f;
+            _sparkAbility.Range = 8f;
+            _sparkAbility.ResourceType = AbilityResourceType.Mana;
+            _sparkAbility.ResourceCost = 12;
+            _sparkAbility.BaseDamage = 30;
+
+            LearnAbility(_sparkAbility);
+
+            if (Flow.PlayerSession.Instance != null) Flow.PlayerSession.Instance.KnowsSpark = true;
+            if (UIManager.Instance != null)
+                UIManager.Instance.LogCombat("You can feel the spark now — cast it with the spell button.");
+        }
+
+        /// <summary>Adds a spell to the spellbook and drops it into the first open spell slot.</summary>
+        public void LearnAbility(AbilityData ability)
+        {
+            if (ability == null) return;
+            EnsureSlots();
+            if (!KnownSpells.Contains(ability)) KnownSpells.Add(ability);
+
+            if (EquippedAbilities.Contains(ability)) return; // already slotted
+            for (int i = 0; i < SpellSlots; i++)
+                if (EquippedAbilities[i] == null) { EquippedAbilities[i] = ability; return; }
+        }
+
+        /// <summary>Binds a known spell to a slot (spellbook). Clears it from any other slot first.</summary>
+        public void AssignToSlot(AbilityData ability, int slot)
+        {
+            if (slot < 0 || slot >= SpellSlots) return;
+            EnsureSlots();
+            if (ability != null)
+            {
+                for (int i = 0; i < SpellSlots; i++)
+                    if (EquippedAbilities[i] == ability) EquippedAbilities[i] = null;
+                if (!KnownSpells.Contains(ability)) KnownSpells.Add(ability);
+            }
+            EquippedAbilities[slot] = ability;
+        }
+
+        public void ClearSlot(int slot)
+        {
+            if (slot < 0 || slot >= SpellSlots) return;
+            EnsureSlots();
+            EquippedAbilities[slot] = null;
+        }
+
+        private void EnsureSlots()
+        {
+            if (EquippedAbilities == null) EquippedAbilities = new List<AbilityData>(SpellSlots);
+            while (EquippedAbilities.Count < SpellSlots) EquippedAbilities.Add(null);
         }
         #endregion
     }

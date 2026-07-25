@@ -19,6 +19,8 @@ namespace ExiledAlvaston.Data
         public string AbilityName;
         [TextArea] public string Description;
         public Sprite Icon;
+        [Tooltip("Placeholder glyph/emoji shown on the spell button when no Icon sprite is set, e.g. \"⚡\".")]
+        public string IconGlyph;
 
         [Header("Mechanics")]
         public float CooldownTime;

@@ -10,7 +10,7 @@ namespace ExiledAlvaston.UI
     [RequireComponent(typeof(Button))]
     public class HUDActionButton : MonoBehaviour
     {
-        public enum ActionKind { Attack, Ability, Inventory }
+        public enum ActionKind { Attack, Ability, Inventory, Interact }
 
         public ActionKind Kind = ActionKind.Ability;
         public int AbilityIndex;
@@ -74,6 +74,9 @@ namespace ExiledAlvaston.UI
                     break;
                 case ActionKind.Inventory:
                     UIManager.Instance.OnInventoryPressed();
+                    break;
+                case ActionKind.Interact:
+                    UIManager.Instance.OnInteractPressed();
                     break;
                 default:
                     UIManager.Instance.OnActionButtonPressed(AbilityIndex);

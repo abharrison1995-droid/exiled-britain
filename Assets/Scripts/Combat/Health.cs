@@ -12,6 +12,8 @@ namespace ExiledAlvaston.Combat
 
         [Tooltip("Enemies/props are destroyed on death. The player clears this so GameFlow can handle death instead.")]
         public bool DestroyOnDeath = true;
+        [Tooltip("Seconds the corpse lingers before being removed — long enough for a death pose/animation to actually be seen.")]
+        public float DestroyDelay = 1.2f;
 
         public UnityEvent<int> OnTakeDamage = new UnityEvent<int>();
         public UnityEvent OnDeath = new UnityEvent();
@@ -49,6 +51,13 @@ namespace ExiledAlvaston.Combat
                 Die();
         }
 
+        /// <summary>Restore health up to MaxHealth. No effect on the dead — use Revive for that.</summary>
+        public void Heal(int amount)
+        {
+            if (IsDead || amount <= 0) return;
+            CurrentHealth = Mathf.Min(MaxHealth, CurrentHealth + amount);
+        }
+
         /// <summary>Bring a dead (non-destroyed) actor back — used by player respawn.</summary>
         public void Revive(int health)
         {
@@ -73,7 +82,7 @@ namespace ExiledAlvaston.Combat
             foreach (var col in GetComponentsInChildren<Collider>())
                 col.enabled = false;
 
-            Destroy(gameObject, 0.5f);
+            Destroy(gameObject, DestroyDelay);
         }
     }
 }
