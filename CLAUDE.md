@@ -219,12 +219,16 @@ is the single most load-bearing line in the whole consequence loop.
 
 ## 9. Git / repo hygiene
 
-- `main` has absorbed `feat/quest-placement-tools-and-mosley-quest` (fast-forward).
-  `feat/concealment-and-police` carries the six commits that landed §8.
-- **`archive/stash-mechanics` must not be deleted.** It pins the stash commit the §8 work was
-  recovered from. The stash tangled the mechanics together with an ad-hoc 1,789-file deletion
-  of `Assets/3DModels/Sprites`; that deletion was deliberately reverted so pruning stays a
-  separate, measured task. The archive branch is the only record of the original state.
+- `main` now contains the quest-placement work (PR #1), the §8 consequence mechanics (PR #2),
+  and `archive/stash-mechanics` (PR #3).
+- `archive/stash-mechanics` pinned the stash the §8 work was recovered from. Merging it into
+  `main` was unnecessary — everything in it had already landed via PR #2 — but it did no harm:
+  nothing was resurrected and no file diverged. Because it is now an ancestor of `main`, the
+  stash commit is permanently reachable and **the branch itself is safe to delete.**
+- ⚠️ **`4b93ccc` on `feat/quest-placement-tools-and-mosley-quest` is NOT merged.** It holds one
+  fix worth keeping — a `PauseManager.IsPaused` guard in `CombatController.Update` that stops
+  spell/attack input firing through open menus — tangled together with 1,789 craftpix renames
+  that would resurrect the deleted sprite folder. Cherry-pick the fix; do not merge the branch.
 - `Assets/` is ~672 MB with `.psd`/`.fbx`/`.glb`/`.aseprite` committed and **no Git LFS**
   (no `.gitattributes`). Pruning will not shrink `.git` — history keeps the blobs.
 - **Asset reachability was measured** (BFS over `.meta` GUIDs from `c.unity` + `Resources/`):
@@ -239,9 +243,16 @@ is the single most load-bearing line in the whole consequence loop.
   of those craftpix files rather than deleting them. Merging that branch after the deletion can
   resurrect the whole folder via git's rename detection. Check `3DModels/Sprites/` is still
   absent after any merge involving that branch.
-- Still untracked on disk: five small fantasy art packs (Bringer Of Death, EVil Wizard,
-  Medieval Warrior Pack 1–2, Monsters Creatures Fantasy — ~1.5 MB total, 2 referenced assets
-  out of 147).
+- The five loose fantasy art packs (Bringer Of Death, EVil Wizard, Medieval Warrior Pack 1–2,
+  Monsters Creatures Fantasy) were deleted — never committed, effectively unreferenced.
+- **Reference integrity is clean.** A full pass over every tracked `.unity`/`.prefab`/`.asset`/
+  `.mat`/`.controller`/`.anim` found exactly one dangling reference (`Animated Chest`), now
+  fixed. Nothing tracked points at anything missing. Re-run that check before the repo move.
+- **Biggest remaining trim: `Assets/3DModels/Animated Chest` — 45 MB for one decorative prop**,
+  almost all uncompressed TGA. It is committed only because `c.unity` references its
+  `Chest.prefab`. Delete the chest instance in the Unity editor and the whole pack goes with it.
+  Next largest unreferenced: `psx urban pack` (105 MB), `Characters_psx` (54 MB),
+  `Magic+atk animations` (50 MB).
 - 11 tracked `.DS_Store` / `__MACOSX` junk files.
 - `Assets/6twelve/` looks like a throwaway third-party demo pack but **is not** — the world
   built in `c.unity` uses 91 of its textures and 88 of its materials. Do not delete it.
