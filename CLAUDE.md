@@ -228,14 +228,20 @@ is the single most load-bearing line in the whole consequence loop.
 - `Assets/` is ~672 MB with `.psd`/`.fbx`/`.glb`/`.aseprite` committed and **no Git LFS**
   (no `.gitattributes`). Pruning will not shrink `.git` — history keeps the blobs.
 - **Asset reachability was measured** (BFS over `.meta` GUIDs from `c.unity` + `Resources/`):
-  roughly 466 of 4,878 assets are referenced, ~20 MB of ~672 MB. The bulk of the remainder is
-  `3DModels/Sprites/` (craftpix packs, 232 MB), `psx urban pack` (105 MB), `Characters_psx`
-  (54 MB) and `Magic+atk animations` (50 MB). **Unreferenced is not the same as unwanted** —
-  the craftpix sprite sheets may be the intended art direction for billboarded actors. Treat
-  that folder as a content decision, not a technical one.
-- Left uncommitted on purpose: five fantasy art packs (Bringer Of Death, EVil Wizard, Medieval
-  Warrior Pack 1–2, Monsters Creatures Fantasy — 2 referenced assets out of 147) and ~2,000
-  duplicate craftpix files restored into `3DModels/Sprites/`. Both are prune-decision material.
+  only ~466 of 4,878 assets were referenced. Remaining unreferenced bulk: `psx urban pack`
+  (105 MB), `Characters_psx` (54 MB), `Magic+atk animations` (50 MB). Re-measure before
+  pruning any of them — unreferenced is not automatically unwanted.
+- **`Assets/3DModels/Sprites/` was deleted** (1,998 files, 454 MB — the craftpix packs), after
+  verifying zero of its 2,123 assets were referenced. Policy going forward: **pull individual
+  sprites in when a system needs them, rather than carrying whole packs speculatively.**
+  Recoverable from history; note `.git` still carries the blobs.
+- ⚠️ **Merge hazard:** `feat/quest-placement-tools-and-mosley-quest` (`4b93ccc`) *renamed* 1,789
+  of those craftpix files rather than deleting them. Merging that branch after the deletion can
+  resurrect the whole folder via git's rename detection. Check `3DModels/Sprites/` is still
+  absent after any merge involving that branch.
+- Still untracked on disk: five small fantasy art packs (Bringer Of Death, EVil Wizard,
+  Medieval Warrior Pack 1–2, Monsters Creatures Fantasy — ~1.5 MB total, 2 referenced assets
+  out of 147).
 - 11 tracked `.DS_Store` / `__MACOSX` junk files.
 - `Assets/6twelve/` looks like a throwaway third-party demo pack but **is not** — the world
   built in `c.unity` uses 91 of its textures and 88 of its materials. Do not delete it.
