@@ -93,8 +93,11 @@ namespace ExiledAlvaston.UI
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == ' ';
         }
 
+        public static bool IsOpen => _instance != null && _instance._root != null && _instance._root.activeSelf;
+
         private void Open()
         {
+            if (IsOpen) return;
             _root.SetActive(true);
             Systems.PauseManager.Push();
         }
