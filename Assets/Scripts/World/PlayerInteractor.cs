@@ -33,6 +33,12 @@ namespace ExiledAlvaston.World
             if (ExiledAlvaston.Systems.PauseManager.IsPaused)
             {
                 _armedAt = Time.unscaledTime + 0.3f;
+                if (_current != null)
+                {
+                    _current = null;
+                    if (UIManager.Instance != null)
+                        UIManager.Instance.SetInteractPrompt(null);
+                }
                 return;
             }
 

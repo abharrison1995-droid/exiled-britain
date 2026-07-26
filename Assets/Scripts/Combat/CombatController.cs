@@ -125,6 +125,9 @@ namespace ExiledAlvaston.Combat
         private void Update()
         {
             if (!IsFlowPlaying()) return;
+            // Time.timeScale=0 during a paused menu/dialogue doesn't stop Update() — without this,
+            // spell/attack input still fires (and mana/cooldowns still get spent) while a menu is open.
+            if (Systems.PauseManager.IsPaused) return;
 
             ProcessCooldowns();
             if (!_isDead)
@@ -488,10 +491,10 @@ namespace ExiledAlvaston.Combat
             if (!_activeCooldownKeys.Contains(ability.AbilityID))
                 _activeCooldownKeys.Add(ability.AbilityID);
 
-            // Magic is frowned upon in the city — it still fires, but the law takes note.
+            // Magic is a secret — casting it drains your Concealment meter.
             if (IsMagic(ability) && IsInCity())
             {
-                Systems.WantedManager.Instance?.SpikeKnives();
+                Systems.WantedManager.Instance?.DrainConcealment(34f); // 3 spells = busted
                 if (UIManager.Instance != null)
                     UIManager.Instance.ShowToast("Easy with the spells there Potter, not around the plebs yeah?");
             }

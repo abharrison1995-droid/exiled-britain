@@ -10,7 +10,9 @@ using ExiledAlvaston.Vibe;
 /// <summary>
 /// Builds reusable enemy prefabs from sliced sprite poses: Orc1/Orc2/Orc3 (single held pose per
 /// state — the source pack is a directional paper-doll rig, not a walk-cycle) and Bot Wheel
-/// (real multi-frame sequences). Also adds Spawn Enemy commands to drop one into the scene.
+/// (real multi-frame sequences). Also adds "Spawn Enemy For Testing" commands that drop a
+/// temporary one next to the player for combat testing — for a permanent, authored placement
+/// saved into a chunk prefab (with loot/overrides/quest key), use Place/Enemy Placement instead.
 /// </summary>
 public static class EnemyPrefabSetup
 {
@@ -39,7 +41,8 @@ public static class EnemyPrefabSetup
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Debug.Log("Enemy prefabs ready: Enemy_Orc1, Enemy_Orc2, Enemy_Orc3, Enemy_BotWheel (Assets/Prefabs/Enemies). " +
-                  "Use Tools/Exiled Alvaston/Spawn Enemy/... to drop one in near the player, or drag the prefab straight into a scene.");
+                  "Use Tools/Exiled Alvaston/Debug/Spawn Enemy For Testing/... to drop one in near the player for combat testing, " +
+                  "or Tools/Exiled Alvaston/Place/Enemy Placement for a permanent, authored placement.");
     }
 
     // ---------- Orc ----------
@@ -351,16 +354,16 @@ public static class EnemyPrefabSetup
 
     // ---------- Spawn commands ----------
 
-    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy/Orc1")]
+    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy For Testing/Orc1")]
     public static void SpawnOrc1() => SpawnEnemy("Enemy_Orc1");
 
-    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy/Orc2")]
+    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy For Testing/Orc2")]
     public static void SpawnOrc2() => SpawnEnemy("Enemy_Orc2");
 
-    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy/Orc3")]
+    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy For Testing/Orc3")]
     public static void SpawnOrc3() => SpawnEnemy("Enemy_Orc3");
 
-    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy/Bot Wheel")]
+    [MenuItem("Tools/Exiled Alvaston/Debug/Spawn Enemy For Testing/Bot Wheel")]
     public static void SpawnBotWheel() => SpawnEnemy("Enemy_BotWheel");
 
     private static void SpawnEnemy(string prefabName)

@@ -69,7 +69,7 @@ public static class BanditPracticeSpawner
         visual.ApplyVisual();
 
         if (banditSprite == null)
-            Debug.LogWarning("Missing Assets/Art/Placeholders/spr_bandit.png — run Tools/Art/Generate Placeholder Art.");
+            Debug.LogWarning("Missing Assets/Art/Placeholders/spr_bandit.png — run Tools/Exiled Alvaston/Repair/Generate Placeholder Art.");
 
         var plate = bandit.AddComponent<EnemyNameplate>();
         plate.Level = 3;

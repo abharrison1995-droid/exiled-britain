@@ -305,11 +305,28 @@ namespace ExiledAlvaston.Flow
         }
 
         /// <summary>
-        /// Player hit 0 HP. Short beat for the death to read, then respawn
-        /// at the Manor Cellars with full health (EK-style "you wake up" recovery).
+        /// Player hit 0 HP. Check if the killing blow came from law enforcement —
+        /// if so, arrest them instead of killing them.
         /// </summary>
         public void HandlePlayerDeath()
         {
+            // ── Check for arrest ──
+            var player = CombatController.Instance;
+            if (player != null)
+            {
+                var playerHealth = player.GetComponent<Health>();
+                if (playerHealth != null && playerHealth.LastAttacker != null)
+                {
+                    var enemyAI = playerHealth.LastAttacker.GetComponent<EnemyAI>();
+                    if (enemyAI != null && enemyAI.IsPolice)
+                    {
+                        StartCoroutine(ArrestRoutine());
+                        return;
+                    }
+                }
+            }
+
+            // ── Normal death flow ──
             bool tutorialDone = PlayerSession.Instance != null && PlayerSession.Instance.TutorialComplete;
 
             // Post-tutorial, Manor Cellars is no longer "home" — use the real death screen
@@ -323,6 +340,60 @@ namespace ExiledAlvaston.Flow
             if (UIManager.Instance != null)
                 UIManager.Instance.LogCombat("You collapse...");
             StartCoroutine(RespawnRoutine(2f));
+        }
+
+        /// <summary>
+        /// "You've been nicked, mate." — arrest flow instead of death.
+        /// Teleport to Manor Cellars, clear wanted level, deduct a fine, revive.
+        /// </summary>
+        private System.Collections.IEnumerator ArrestRoutine()
+        {
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowToast("Busted! You've been nicked, mate.", 3f);
+                UIManager.Instance.LogCombat("The police wrestle you to the ground...");
+            }
+
+            yield return new WaitForSeconds(2.5f);
+
+            var player = CombatController.Instance;
+            if (player == null) yield break;
+
+            player.ReviveFull();
+
+            // Clear wanted level and concealment
+            if (Systems.WantedManager.Instance != null)
+            {
+                Systems.WantedManager.Instance.CurrentKnives = 0;
+                Systems.WantedManager.Instance.CurrentConcealment = Systems.WantedManager.Instance.MaxConcealment;
+                if (UIManager.Instance != null)
+                {
+                    UIManager.Instance.UpdateKnivesUI(0);
+                    UIManager.Instance.UpdatePlayerConcealment(
+                        Systems.WantedManager.Instance.MaxConcealment,
+                        Systems.WantedManager.Instance.MaxConcealment);
+                }
+            }
+
+            // Despawn all police from the scene so they don't re-arrest you immediately
+            foreach (var enemy in FindObjectsOfType<EnemyAI>())
+            {
+                if (enemy != null && enemy.IsPolice)
+                    Destroy(enemy.gameObject);
+            }
+
+            // Teleport to Manor Cellars (the holding cell, basically)
+            bool tutorialDone = PlayerSession.Instance != null && PlayerSession.Instance.TutorialComplete;
+            EnterManorCellars(isTutorial: !tutorialDone);
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.LogCombat("Released from custody. Fined 50 quid.");
+                UIManager.Instance.ShowToast("Released from custody. Don't let it happen again.", 3f);
+            }
+
+            // TODO: Deduct gold from player inventory once raw gold tracking is in
+            // PlayerSession.Instance.Inventory.RemoveGold(50);
         }
 
         private System.Collections.IEnumerator RespawnRoutine(float delay)
