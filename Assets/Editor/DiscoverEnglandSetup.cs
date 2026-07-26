@@ -21,6 +21,23 @@ public static class DiscoverEnglandSetup
     [MenuItem("Tools/Exiled Alvaston/Setup (one-time)/Discover England Bootstrap (rebuilds scene + prefabs!)")]
     public static void SetupAll()
     {
+        string manorPrefabPath = PrefabFolder + "/Manor_Cellars_Prefab.prefab";
+        bool manorExists = AssetDatabase.LoadAssetAtPath<GameObject>(manorPrefabPath) != null;
+        if (manorExists)
+        {
+            bool proceed = EditorUtility.DisplayDialog(
+                "Rebuild Manor Cellars + Flow UI?",
+                "Manor_Cellars_Prefab.prefab already exists. Running this will unconditionally rebuild it " +
+                "from scratch — destroying any NPCs/enemies/chests/markers hand-placed into it since it was " +
+                "last generated — and will also destroy and rebuild the Title/Character-Creator UI and " +
+                "GameFlowController in the open scene.\n\n" +
+                "This does NOT touch Home_Alvaston_Prefab (where Mosley/the Neek Box live) — only Manor " +
+                "Cellars and the flow UI are affected.\n\nContinue?",
+                "Yes, rebuild",
+                "Cancel");
+            if (!proceed) return;
+        }
+
         EnsureFolders();
 
         MapChunkData london = EnsureLondonData();

@@ -10,7 +10,7 @@ public static class PlaceholderArtGenerator
 {
     public const string ArtFolder = "Assets/Art/Placeholders";
 
-    [MenuItem("Tools/Exiled Alvaston/Setup (one-time)/Generate Placeholder Art")]
+    [MenuItem("Tools/Exiled Alvaston/Repair/Generate Placeholder Art")]
     public static void GenerateAll()
     {
         EnsureFolders();

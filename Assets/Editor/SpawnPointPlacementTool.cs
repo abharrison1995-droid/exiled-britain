@@ -17,7 +17,7 @@ public class SpawnPointPlacementTool : EditorWindow
 {
     private string _id = "";
 
-    [MenuItem("Tools/Exiled Alvaston/Place/Player Spawn Point")]
+    [MenuItem("Tools/Exiled Alvaston/Place/Spawn Point Placement")]
     public static void Open()
     {
         GetWindow<SpawnPointPlacementTool>("Player Spawn Point");
