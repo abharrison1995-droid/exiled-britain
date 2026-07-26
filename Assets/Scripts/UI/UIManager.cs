@@ -26,9 +26,11 @@ namespace ExiledAlvaston.UI
         public Image PlayerPortrait;
         public Image PlayerHealthFill;
         public Image PlayerManaFill;
+        public Image PlayerConcealmentFill;
         [Tooltip("Numeric \"current / max\" readouts drawn over the bars. Auto-built at runtime if left empty.")]
         public TextMeshProUGUI PlayerHealthText;
         public TextMeshProUGUI PlayerManaText;
+        public TextMeshProUGUI PlayerConcealmentText;
         public TextMeshProUGUI LevelText;
         public TextMeshProUGUI LocationTimeText;
         public TextMeshProUGUI WantedKnivesText;
@@ -50,6 +52,7 @@ namespace ExiledAlvaston.UI
         private readonly Queue<string> _logLines = new Queue<string>();
         private float _playerHpMax = 100f;
         private float _playerMpMax = 50f;
+        private float _playerConcealmentMax = 100f;
 
         /// <summary>The 4 spell-slot button backgrounds + labels, refreshed to show bound spells.</summary>
         private readonly Image[] _spellSlotImages = new Image[4];
@@ -98,6 +101,16 @@ namespace ExiledAlvaston.UI
             EnsureBarLabel(ref PlayerManaText, PlayerManaFill, "MPText");
             if (PlayerManaText != null)
                 PlayerManaText.text = $"{Mathf.Max(0, current)} / {(int)_playerMpMax}";
+        }
+
+        public void UpdatePlayerConcealment(float current, float max)
+        {
+            _playerConcealmentMax = Mathf.Max(1, max);
+            SetBarFill(PlayerConcealmentFill, current / _playerConcealmentMax);
+
+            EnsureBarLabel(ref PlayerConcealmentText, PlayerConcealmentFill, "ConcealmentText");
+            if (PlayerConcealmentText != null)
+                PlayerConcealmentText.text = $"{Mathf.Max(0, (int)current)} / {(int)_playerConcealmentMax}";
         }
 
         /// <summary>
