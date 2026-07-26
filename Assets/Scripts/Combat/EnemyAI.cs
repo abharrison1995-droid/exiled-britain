@@ -23,6 +23,8 @@ namespace ExiledAlvaston.Combat
         public float EyeHeight = 0.95f;
         [Tooltip("Seconds between swing start and damage — stepping out of range dodges the hit.")]
         public float AttackWindup = 0.3f;
+        [Tooltip("If true, this enemy is law enforcement. Killing the player triggers arrest instead of death.")]
+        public bool IsPolice = false;
 
         [Header("Movement")]
         public float MoveSpeed = 3.6f;
@@ -330,7 +332,7 @@ namespace ExiledAlvaston.Combat
                     if (playerHp != null)
                     {
                         if (!playerHp.IsDead)
-                            playerHp.TakeDamage(Damage, foe, "you");
+                            playerHp.TakeDamage(Damage, foe, "you", gameObject);
                     }
                     else
                     {

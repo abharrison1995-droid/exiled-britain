@@ -20,6 +20,9 @@ namespace ExiledAlvaston.Combat
 
         public bool IsDead => CurrentHealth <= 0;
 
+        /// <summary>The GameObject that last dealt damage to this entity. Used by arrest logic to check if attacker was police.</summary>
+        [System.NonSerialized] public GameObject LastAttacker;
+
         private void Awake()
         {
             CurrentHealth = MaxHealth;
@@ -34,8 +37,14 @@ namespace ExiledAlvaston.Combat
 
         public void TakeDamage(int damage, string attackerName, string targetLabel)
         {
+            TakeDamage(damage, attackerName, targetLabel, null);
+        }
+
+        public void TakeDamage(int damage, string attackerName, string targetLabel, GameObject attacker)
+        {
             if (IsDead) return;
 
+            LastAttacker = attacker;
             CurrentHealth -= damage;
             OnTakeDamage?.Invoke(damage);
 
