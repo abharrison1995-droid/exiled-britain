@@ -62,7 +62,13 @@ namespace ExiledAlvaston.Combat
                 _lr.startColor = _lr.endColor = c;
             }
             if (_age >= _life)
+            {
+                // The LineRenderer's runtime Material instance isn't freed just by destroying
+                // the GameObject that owned it — every cast would otherwise leak one.
+                if (_lr != null && _lr.material != null)
+                    Destroy(_lr.material);
                 Destroy(gameObject);
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -15,7 +16,7 @@ namespace ExiledAlvaston.UI
     public class QuestPopupUI : MonoBehaviour
     {
         private static QuestPopupUI _instance;
-        private static QuestProgress _pending;
+        private static readonly Queue<QuestProgress> _pending = new Queue<QuestProgress>();
 
         private GameObject _root;
         private TextMeshProUGUI _titleText;
@@ -27,10 +28,11 @@ namespace ExiledAlvaston.UI
         {
             if (quest == null) return;
 
-            // Mid-conversation grants wait for the dialogue panel to close
-            if (Dialogue.DialogueManager.IsDialogueOpen)
+            // Mid-conversation grants wait for the dialogue panel to close. Queued (not a single
+            // slot) so a conversation that grants more than one quest doesn't drop all but the last.
+            if (Dialogue.DialogueManager.IsDialogueOpen || IsOpen)
             {
-                _pending = quest;
+                _pending.Enqueue(quest);
                 return;
             }
 
@@ -47,10 +49,8 @@ namespace ExiledAlvaston.UI
         /// <summary>Called by DialogueManager when a conversation ends.</summary>
         public static void ShowPendingIfAny()
         {
-            if (_pending == null) return;
-            QuestProgress q = _pending;
-            _pending = null;
-            Show(q);
+            if (_pending.Count == 0) return;
+            Show(_pending.Dequeue());
         }
 
         private void Open(QuestProgress quest)
@@ -64,6 +64,12 @@ namespace ExiledAlvaston.UI
 
         private void Close()
         {
+            CloseInternal();
+            ShowPendingIfAny();
+        }
+
+        private void CloseInternal()
+        {
             if (!IsOpen) return;
             _root.SetActive(false);
             Systems.PauseManager.Pop();
@@ -71,7 +77,9 @@ namespace ExiledAlvaston.UI
 
         private void OpenJournal()
         {
-            Close();
+            // Skip ShowPendingIfAny here — jumping straight to the full journal shouldn't pop
+            // another quest notice on top of it; any queued one shows next time this popup closes.
+            CloseInternal();
             QuestJournalUI.Open();
         }
 

@@ -13,7 +13,7 @@ public static class ChunkArtMerge
 {
     const string HomePrefabPath = "Assets/Prefabs/Chunks/Home_Alvaston_Prefab.prefab";
 
-    [MenuItem("Tools/Exiled Alvaston/World/Merge Selected Into Home Prefab")]
+    [MenuItem("Tools/Exiled Alvaston/World/Merge Selected Into Home Alvaston Prefab")]
     public static void MergeSelected()
     {
         GameObject[] selection = Selection.gameObjects;
@@ -84,7 +84,7 @@ public static class ChunkArtMerge
         Material stoneMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Art/Placeholders/mat_stone.mat");
         if (dungeonMat == null && stoneMat == null)
         {
-            Debug.LogError("No placeholder materials found in Assets/Art/Placeholders — run Tools/Art/Generate Placeholder Art first.");
+            Debug.LogError("No placeholder materials found in Assets/Art/Placeholders — run Tools/Exiled Alvaston/Repair/Generate Placeholder Art first.");
             return;
         }
 
